@@ -91,16 +91,7 @@ A smart attendance system that uses facial recognition to mark attendance automa
 - ✅ User-friendly interface
 - ✅ Multi-platform support
 
-## 📸 Screenshots
 
-### Home Page
-![Home Page](static/screenshots/home.png)
-
-### Adding New User
-![Add User](static/screenshots/add_user.png)
-
-### Attendance View
-![Attendance](static/screenshots/attendance.png)
 
 ## ⚠️ Important Notes
 
@@ -122,10 +113,3 @@ A smart attendance system that uses facial recognition to mark attendance automa
 ## 👨‍💻 Developer
 Developed by: Manjeet Singh
 
-## 🤝 Support
-For any issues or questions:
-- Create an issue on GitHub
-- Email: your-email@example.com
-
----
-Made with ❤️ in India 🇮🇳 

@@ -1,8 +1,7 @@
 import cv2
 import os
 from flask import Flask, request, render_template, jsonify
-from datetime import date
-from datetime import datetime
+from datetime import date, datetime
 import numpy as np
 from sklearn.neighbors import KNeighborsClassifier
 import pandas as pd
@@ -10,16 +9,51 @@ import joblib
 import base64
 import io
 from PIL import Image
+import pytz
+import requests
+from datetime import datetime, timezone
 
 # Defining Flask App
 app = Flask(__name__)
 
-# Saving Date today in 2 different formats
-datetoday = date.today().strftime("%m_%d_%y")
-datetoday2 = date.today().strftime("%d-%B-%Y")
+def get_india_datetime():
+    india_tz = pytz.timezone('Asia/Kolkata')
+    india_time = datetime.now(india_tz)
+    return {
+        'date': india_time.strftime("%d-%B-%Y"),
+        'time': india_time.strftime("%I:%M:%S %p"),
+        'day': india_time.strftime("%A")
+    }
+
+def get_india_weather():
+    try:
+        # Using OpenWeatherMap API for New Delhi (you can change the city)
+        # You should replace 'YOUR_API_KEY' with an actual API key from openweathermap.org
+        api_key = 'YOUR_API_KEY'  # Get this from openweathermap.org
+        city = 'New Delhi'
+        url = f'http://api.openweathermap.org/data/2.5/weather?q={city}&appid={api_key}&units=metric'
+        response = requests.get(url)
+        if response.status_code == 200:
+            data = response.json()
+            return {
+                'temperature': f"{data['main']['temp']}°C",
+                'humidity': f"{data['main']['humidity']}%",
+                'description': data['weather'][0]['description']
+            }
+    except Exception as e:
+        print(f"Weather API error: {e}")
+    return None
+
+# Saving Date today in 2 different formats using Indian timezone
+india_datetime = get_india_datetime()
+datetoday = datetime.now(pytz.timezone('Asia/Kolkata')).strftime("%m_%d_%y")
+datetoday2 = india_datetime['date']
 
 # Initialize face detector
-face_detector = cv2.CascadeClassifier(cv2.data.haarcascades + 'haarcascade_frontalface_default.xml')
+# Get OpenCV's installation path and construct the cascade classifier path
+opencv_path = os.path.dirname(cv2.__file__)
+cascade_path = os.path.join(opencv_path, 'data', 'haarcascade_frontalface_default.xml')
+face_detector = cv2.CascadeClassifier(cascade_path)
 
 # If these directories don't exist, create them
 if not os.path.isdir('Attendance'):
@@ -80,7 +114,10 @@ def extract_attendance():
 def add_attendance(name):
     username = name.split('_')[0]
     userid = name.split('_')[1]
-    current_time = datetime.now().strftime("%H:%M:%S")
+    
+    # Get current time in Indian timezone
+    india_tz = pytz.timezone('Asia/Kolkata')
+    current_time = datetime.now(india_tz).strftime("%I:%M:%S %p")
     
     df = pd.read_csv(f'Attendance/Attendance-{datetoday}.csv')
     if int(userid) not in list(df['Roll']):
@@ -91,8 +128,20 @@ def add_attendance(name):
 
 @app.route('/')
 def home():
-    names,rolls,times,l = extract_attendance()    
-    return render_template('home.html',names=names,rolls=rolls,times=times,l=l,totalreg=totalreg(),datetoday2=datetoday2) 
+    names, rolls, times, l = extract_attendance()
+    india_data = get_india_datetime()
+    weather_data = get_india_weather()
+    
+    return render_template('home.html',
+                         names=names,
+                         rolls=rolls,
+                         times=times,
+                         l=l,
+                         totalreg=totalreg(),
+                         datetoday2=datetoday2,
+                         india_time=india_data['time'],
+                         india_day=india_data['day'],
+                         weather=weather_data)
 
 @app.route('/start', methods=['POST'])
 def start():
@@ -104,9 +153,13 @@ def start():
 
     try:
         # Get the image data from the request
-        image_data = request.json.get('image')
-        if not image_data:
+        request_data = request.json
+        if not request_data or 'image' not in request_data:
             return jsonify({'success': False, 'message': 'No image data received'})
+            
+        image_data = request_data['image']
+        if not image_data:
+            return jsonify({'success': False, 'message': 'Empty image data received'})
 
         # Process the image
         faces = extract_faces(image_data)
@@ -213,5 +266,14 @@ def add():
     except Exception as e:
         return jsonify({'success': False, 'message': str(e)})
 
+@app.route('/get_time')
+def get_time():
+    india_data = get_india_datetime()
+    return jsonify({
+        'time': india_data['time'],
+        'date': india_data['date'],
+        'day': india_data['day']
+    })
+
 if __name__ == '__main__':
-    app.run(debug=True)
+    app.run(host='0.0.0.0', port=5000, debug=True)
